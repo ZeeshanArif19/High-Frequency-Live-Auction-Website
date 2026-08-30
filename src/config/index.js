@@ -6,6 +6,12 @@
  * process.env directly (AGENTS.md §2).
  */
 
+try {
+  process.loadEnvFile?.();
+} catch {
+  // Ignore if .env file is not present or cannot be read
+}
+
 export const config = Object.freeze({
   port: parseInt(process.env.PORT ?? "3000", 10),
 
