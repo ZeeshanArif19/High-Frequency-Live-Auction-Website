@@ -1,0 +1,175 @@
+/**
+ * client/src/hooks/useAuction.js
+ *
+ * Custom hook combining auctionService and wsService to maintain live auction state (TASK.md §STEP-11).
+ */
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { fetchAuction, placeBid } from '../services/auctionService.js';
+import { wsService } from '../services/wsService.js';
+
+export function useAuction(auctionId) {
+  const [auction, setAuction] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [bidStatus, setBidStatus] = useState({ state: 'idle', message: null });
+  const [priceFlash, setPriceFlash] = useState(false);
+  const flashTimeoutRef = useRef(null);
+
+  // Load initial auction data
+  useEffect(() => {
+    if (!auctionId) {
+      setLoading(false);
+      setAuction(null);
+      return;
+    }
+
+    let isMounted = true;
+    setLoading(true);
+    setError(null);
+    setBidStatus({ state: 'idle', message: null });
+
+    fetchAuction(auctionId)
+      .then((data) => {
+        if (isMounted) {
+          setAuction(data);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (isMounted) {
+          setError(err.message || 'Failed to load auction');
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [auctionId]);
+
+  // Connect WebSocket and listen for real-time bid updates
+  useEffect(() => {
+    wsService.connect();
+
+    const unsubConn = wsService.on('connectionChange', ({ connected }) => {
+      setWsConnected(connected);
+    });
+
+    // Set initial connection status
+    setWsConnected(wsService.isConnected);
+
+    if (!auctionId) return unsubConn;
+
+    const unsubBid = wsService.on(`bidUpdate:${auctionId}`, (payload) => {
+      const { newMaxBid } = payload;
+      setAuction((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          current_max_bid: newMaxBid,
+        };
+      });
+
+      // Visual flash animation trigger
+      setPriceFlash(true);
+      if (flashTimeoutRef.current) {
+        clearTimeout(flashTimeoutRef.current);
+      }
+      flashTimeoutRef.current = setTimeout(() => {
+        setPriceFlash(false);
+      }, 1200);
+
+      // If user had an optimistic pending state, confirm it
+      setBidStatus((prev) => {
+        if (prev.state === 'pending') {
+          return {
+            state: 'accepted',
+            message: `Confirmed! Current highest bid is now $${Number(newMaxBid).toLocaleString()}`,
+          };
+        }
+        return prev;
+      });
+    });
+
+    return () => {
+      unsubConn();
+      unsubBid();
+      if (flashTimeoutRef.current) {
+        clearTimeout(flashTimeoutRef.current);
+      }
+    };
+  }, [auctionId]);
+
+  // Submit bid action
+  const handlePlaceBid = useCallback(
+    async ({ userId, bidAmount }) => {
+      if (!auctionId) {
+        setBidStatus({ state: 'error', message: 'No active auction selected.' });
+        return { success: false };
+      }
+
+      const numBid = Number(bidAmount);
+      if (isNaN(numBid) || !isFinite(numBid) || numBid <= 0) {
+        setBidStatus({ state: 'error', message: 'Bid amount must be a positive finite decimal.' });
+        return { success: false };
+      }
+
+      const currentMax = Number(auction?.current_max_bid ?? auction?.starting_price ?? 0);
+      if (numBid <= currentMax) {
+        setBidStatus({
+          state: 'error',
+          message: `Bid must be higher than current highest bid ($${currentMax.toLocaleString()}).`,
+        });
+        return { success: false };
+      }
+
+      // Optimistic transition
+      setBidStatus({
+        state: 'pending',
+        message: 'Bid placed — awaiting confirmation...',
+      });
+
+      try {
+        const result = await placeBid(auctionId, { userId, bidAmount: numBid });
+
+        if (result.accepted) {
+          // Status stays 'pending' until WS confirmation broadcast arrives
+          return { success: true };
+        } else {
+          // 409 Conflict or 404
+          const errorMessage = result.error || 'Bid rejected: Outbid by another bidder or auction ended.';
+          setBidStatus({
+            state: 'error',
+            message: errorMessage,
+          });
+          return { success: false, error: errorMessage };
+        }
+      } catch (err) {
+        const errorMsg = err.message || 'Network error submitting bid.';
+        setBidStatus({
+          state: 'error',
+          message: errorMsg,
+        });
+        return { success: false, error: errorMsg };
+      }
+    },
+    [auctionId, auction]
+  );
+
+  const clearBidStatus = useCallback(() => {
+    setBidStatus({ state: 'idle', message: null });
+  }, []);
+
+  return {
+    auction,
+    loading,
+    error,
+    wsConnected,
+    bidStatus,
+    priceFlash,
+    placeBid: handlePlaceBid,
+    clearBidStatus,
+  };
+}

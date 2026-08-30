@@ -20,6 +20,7 @@
 import { pool } from '../../db/pool.js';
 import { insertBid, updateAuctionMaxBid } from '../../db/repositories/bidRepository.js';
 import { config } from '../../config/index.js';
+import { broadcastBidUpdate } from '../../ws/server.js';
 
 // Queue name sourced from config — never hardcoded (AGENTS.md §5).
 const BID_QUEUE = config.rabbitmq.bidQueue;
@@ -73,6 +74,9 @@ export async function startBidConsumer(channel) {
       console.log(
         `[BidConsumer] ACK  auction=${auctionId} user=${userId} amount=${bidAmount}`
       );
+
+      // ── Broadcast update post-ACK (STEP-10) ───────────────────────────────
+      broadcastBidUpdate(auctionId, bidAmount);
     } catch (err) {
       // ── 6. Rollback and NACK (requeue: false → DLX) ─────────────────────
       try {
