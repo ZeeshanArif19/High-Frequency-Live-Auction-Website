@@ -1,7 +1,7 @@
 /**
  * client/src/services/auctionService.js
  *
- * Service for communicating with backend auction HTTP endpoints (AGENTS.md §7, TASK.md §STEP-11).
+ * Service for communicating with backend auction HTTP endpoints (AGENTS.md §7).
  * Injects JWT Bearer token on authenticated operations.
  */
 
@@ -146,7 +146,10 @@ export async function placeBid(auctionId, { bidAmount, userId }) {
 /**
  * Creates a new auction lot. Requires authentication.
  *
- * @param {Object} auctionData - { item_name, starting_price, end_time, description, category, image_url, lot_number }
+ * @param {Object} auctionData - {
+ *   title, description, startingPrice, minimumBidIncrement,
+ *   startTime, endTime, category, imageUrl, lotNumber
+ * }
  * @returns {Promise<Object>} Created auction.
  */
 export async function createAuction(auctionData) {
@@ -161,7 +164,10 @@ export async function createAuction(auctionData) {
   const data = await parseResponseBody(response);
 
   if (!response.ok) {
-    const errorMsg = data.error || data.details?.[0]?.message || `Failed to create auction (${response.status})`;
+    const errorMsg =
+      data.error ||
+      data.details?.[0]?.message ||
+      `Failed to create auction (${response.status})`;
     const error = new Error(errorMsg);
     error.status = response.status;
     error.data = data;
@@ -251,6 +257,7 @@ export async function fetchMyBids() {
 
 /**
  * Fetches auctions created by the logged in user.
+ * Returns bid_count per auction for lifecycle context.
  *
  * @returns {Promise<Array<Object>>}
  */

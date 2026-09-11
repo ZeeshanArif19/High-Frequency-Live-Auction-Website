@@ -15,6 +15,7 @@ export function AuthProvider({ children }) {
   const [authModalMode, setAuthModalMode] = useState('login');
   const [createAuctionOpen, setCreateAuctionOpen] = useState(false);
   const [myBidsOpen, setMyBidsOpen] = useState(false);
+  const [myAuctionsOpen, setMyAuctionsOpen] = useState(false);
 
   // Sync state across storage events and profile check
   useEffect(() => {
@@ -74,6 +75,18 @@ export function AuthProvider({ children }) {
     setMyBidsOpen(false);
   };
 
+  const openMyAuctions = () => {
+    if (!user) {
+      openLogin();
+      return;
+    }
+    setMyAuctionsOpen(true);
+  };
+
+  const closeMyAuctions = () => {
+    setMyAuctionsOpen(false);
+  };
+
   const logout = () => {
     doLogout();
     setUser(null);
@@ -88,6 +101,7 @@ export function AuthProvider({ children }) {
         authModalMode,
         createAuctionOpen,
         myBidsOpen,
+        myAuctionsOpen,
         openLogin,
         openRegister,
         closeAuthModal,
@@ -95,6 +109,8 @@ export function AuthProvider({ children }) {
         closeCreateAuction,
         openMyBids,
         closeMyBids,
+        openMyAuctions,
+        closeMyAuctions,
         logout,
         setUser,
       }}

@@ -32,10 +32,10 @@ import { config } from '../config/index.js';
  */
 async function fetchActiveAuction(auctionId) {
   const sql = `
-    SELECT id, item_name, starting_price, current_max_bid, end_time, owner_id
+    SELECT id, COALESCE(title, item_name) AS title, item_name, starting_price,
+           current_max_bid, start_time, end_time, minimum_bid_increment, owner_id
     FROM   auctions
-    WHERE  id       = $1
-      AND  end_time > NOW()
+    WHERE  id = $1
   `;
 
   const { rows } = await pool.query(sql, [auctionId]);
@@ -57,7 +57,22 @@ export async function submitBid({ auctionId, userId, bidAmount }) {
   if (!auction) {
     return {
       accepted: false,
-      reason: 'Auction not found or has already ended.',
+      reason: 'Auction not found.',
+    };
+  }
+
+  const now = Date.now();
+  if (now < new Date(auction.start_time).getTime()) {
+    return {
+      accepted: false,
+      reason: 'Auction has not started yet.',
+    };
+  }
+
+  if (now >= new Date(auction.end_time).getTime()) {
+    return {
+      accepted: false,
+      reason: 'Auction has already ended.',
     };
   }
 

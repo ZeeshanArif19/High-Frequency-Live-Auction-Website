@@ -8,7 +8,7 @@ import React from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 
 export function Header({ onNavigateToProducts, onNavigateHome }) {
-  const { user, isAuthenticated, openLogin, openRegister, openCreateAuction, openMyBids, logout } =
+  const { user, isAuthenticated, openLogin, openRegister, openCreateAuction, openMyBids, openMyAuctions, logout } =
     useAuth();
 
   const logoUrl =
@@ -63,6 +63,15 @@ export function Header({ onNavigateToProducts, onNavigateHome }) {
               >
                 <span className="material-symbols-outlined text-sm text-secondary">history</span>
                 <span>My Bids</span>
+              </button>
+
+              <button
+                onClick={openMyAuctions}
+                className="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-lg bg-surface-container-high hover:bg-surface-bright text-xs font-mono text-on-surface border border-outline-variant/40 transition-colors"
+                title="My Auction Lots"
+              >
+                <span className="material-symbols-outlined text-sm text-secondary">gavel</span>
+                <span>My Lots</span>
               </button>
 
               <button

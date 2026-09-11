@@ -121,9 +121,13 @@ export async function seedDemoAuctions() {
 
   for (const item of DEMO_AUCTIONS) {
     const sql = `
-      INSERT INTO auctions (item_name, starting_price, current_max_bid, end_time, description, category, image_url, lot_number, owner_id)
-      VALUES ($1, $2, $3, NOW() + ($4 || ' hours')::INTERVAL, $5, $6, $7, $8, $9)
-      RETURNING id, item_name, starting_price, current_max_bid, end_time, description, category, image_url, lot_number, owner_id
+      INSERT INTO auctions (
+        title, item_name, starting_price, current_max_bid, start_time, end_time,
+        minimum_bid_increment, description, category, image_url, lot_number, owner_id
+      )
+      VALUES ($1, $1, $2, $3, NOW(), NOW() + ($4 || ' hours')::INTERVAL, $5, $6, $7, $8, $9, $10)
+      RETURNING id, title, item_name, starting_price, current_max_bid, start_time, end_time,
+                minimum_bid_increment, description, category, image_url, lot_number, owner_id
     `;
 
     const { rows } = await pool.query(sql, [
@@ -131,6 +135,7 @@ export async function seedDemoAuctions() {
       item.startingPrice,
       item.currentMaxBid,
       item.hoursToEnd,
+      10000.0,
       item.description,
       item.category,
       item.imageUrl,

@@ -1,8 +1,8 @@
 /**
  * client/src/App.jsx
  *
- * Root component orchestrating LandingPage, ProductsPage, and live AuctionDetailPage,
- * wrapped with global AuthProvider and modals.
+ * Root component orchestrating LandingPage, ProductsPage, AuctionDetailPage,
+ * and MyAuctionsPage, wrapped with global AuthProvider and modals.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { LandingPage } from './components/Landing/LandingPage.jsx';
 import { ProductsPage } from './components/Products/ProductsPage.jsx';
 import { AuctionDetailPage } from './components/Auction/AuctionDetailPage.jsx';
+import { MyAuctionsPage } from './components/User/MyAuctionsPage.jsx';
 import { AuthModal } from './components/Auth/AuthModal.jsx';
 import { CreateAuctionModal } from './components/Auction/CreateAuctionModal.jsx';
 import { MyBidsModal } from './components/User/MyBidsModal.jsx';
@@ -27,6 +28,8 @@ function AppContent() {
     closeCreateAuction,
     myBidsOpen,
     closeMyBids,
+    myAuctionsOpen,
+    closeMyAuctions,
   } = useAuth();
 
   // Check initial URL params for auctionId
@@ -67,6 +70,14 @@ function AppContent() {
     window.history.pushState({}, '', url);
   };
 
+  const handleNavigateMyAuctions = () => {
+    setSelectedProduct(null);
+    setCurrentPage('my-auctions');
+    const url = new URL(window.location);
+    url.searchParams.delete('auctionId');
+    window.history.pushState({}, '', url);
+  };
+
   return (
     <>
       {/* Dynamic Page Views */}
@@ -79,6 +90,11 @@ function AppContent() {
       ) : currentPage === 'products' ? (
         <ProductsPage
           onNavigateHome={handleNavigateHome}
+          onAuctionSelect={handleSelectAuction}
+        />
+      ) : currentPage === 'my-auctions' ? (
+        <MyAuctionsPage
+          onNavigateBack={() => setCurrentPage('home')}
           onAuctionSelect={handleSelectAuction}
         />
       ) : (
@@ -112,6 +128,13 @@ function AppContent() {
             .catch(() => {});
         }}
       />
+
+      {/* My Auctions navigates to the page directly; close the modal trigger */}
+      {myAuctionsOpen && (() => {
+        closeMyAuctions();
+        handleNavigateMyAuctions();
+        return null;
+      })()}
     </>
   );
 }
