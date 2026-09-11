@@ -1,15 +1,17 @@
 /**
  * client/src/hooks/useAuction.js
  *
- * Custom hook combining auctionService and wsService to maintain live auction state (TASK.md §STEP-11).
+ * Custom hook combining auctionService and wsService to maintain live auction state,
+ * price flash animations, bid placement, and live bid history (AGENTS.md §7).
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchAuction, placeBid } from '../services/auctionService.js';
+import { fetchAuction, fetchAuctionBids, placeBid } from '../services/auctionService.js';
 import { wsService } from '../services/wsService.js';
 
 export function useAuction(auctionId) {
   const [auction, setAuction] = useState(null);
+  const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [wsConnected, setWsConnected] = useState(false);
@@ -17,11 +19,12 @@ export function useAuction(auctionId) {
   const [priceFlash, setPriceFlash] = useState(false);
   const flashTimeoutRef = useRef(null);
 
-  // Load initial auction data
+  // Load initial auction data and bid history
   useEffect(() => {
     if (!auctionId) {
       setLoading(false);
       setAuction(null);
+      setBids([]);
       return;
     }
 
@@ -30,10 +33,14 @@ export function useAuction(auctionId) {
     setError(null);
     setBidStatus({ state: 'idle', message: null });
 
-    fetchAuction(auctionId)
-      .then((data) => {
+    Promise.all([
+      fetchAuction(auctionId),
+      fetchAuctionBids(auctionId).catch(() => []),
+    ])
+      .then(([auctionData, bidsData]) => {
         if (isMounted) {
-          setAuction(data);
+          setAuction(auctionData);
+          setBids(bidsData);
           setLoading(false);
         }
       })
@@ -57,13 +64,12 @@ export function useAuction(auctionId) {
       setWsConnected(connected);
     });
 
-    // Set initial connection status
     setWsConnected(wsService.isConnected);
 
     if (!auctionId) return unsubConn;
 
     const unsubBid = wsService.on(`bidUpdate:${auctionId}`, (payload) => {
-      const { newMaxBid } = payload;
+      const { newMaxBid, timestamp } = payload;
       setAuction((prev) => {
         if (!prev) return prev;
         return {
@@ -71,6 +77,11 @@ export function useAuction(auctionId) {
           current_max_bid: newMaxBid,
         };
       });
+
+      // Refetch latest bids to keep history in sync
+      fetchAuctionBids(auctionId)
+        .then((latestBids) => setBids(latestBids))
+        .catch(() => {});
 
       // Visual flash animation trigger
       setPriceFlash(true);
@@ -86,7 +97,7 @@ export function useAuction(auctionId) {
         if (prev.state === 'pending') {
           return {
             state: 'accepted',
-            message: `Confirmed! Current highest bid is now $${Number(newMaxBid).toLocaleString()}`,
+            message: `Confirmed! Current highest bid is now ₹${Number(newMaxBid).toLocaleString()}`,
           };
         }
         return prev;
@@ -120,12 +131,11 @@ export function useAuction(auctionId) {
       if (numBid <= currentMax) {
         setBidStatus({
           state: 'error',
-          message: `Bid must be higher than current highest bid ($${currentMax.toLocaleString()}).`,
+          message: `Bid must be higher than current highest bid (₹${currentMax.toLocaleString()}).`,
         });
         return { success: false };
       }
 
-      // Optimistic transition
       setBidStatus({
         state: 'pending',
         message: 'Bid placed — awaiting confirmation...',
@@ -135,10 +145,8 @@ export function useAuction(auctionId) {
         const result = await placeBid(auctionId, { userId, bidAmount: numBid });
 
         if (result.accepted) {
-          // Status stays 'pending' until WS confirmation broadcast arrives
           return { success: true };
         } else {
-          // 409 Conflict or 404
           const errorMessage = result.error || 'Bid rejected: Outbid by another bidder or auction ended.';
           setBidStatus({
             state: 'error',
@@ -164,6 +172,7 @@ export function useAuction(auctionId) {
 
   return {
     auction,
+    bids,
     loading,
     error,
     wsConnected,

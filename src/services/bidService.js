@@ -32,7 +32,7 @@ import { config } from '../config/index.js';
  */
 async function fetchActiveAuction(auctionId) {
   const sql = `
-    SELECT id, item_name, starting_price, current_max_bid, end_time
+    SELECT id, item_name, starting_price, current_max_bid, end_time, owner_id
     FROM   auctions
     WHERE  id       = $1
       AND  end_time > NOW()
@@ -58,6 +58,14 @@ export async function submitBid({ auctionId, userId, bidAmount }) {
     return {
       accepted: false,
       reason: 'Auction not found or has already ended.',
+    };
+  }
+
+  // ── Step 1b: Verify bidder is not the auction owner ───────────────────────
+  if (auction.owner_id && auction.owner_id === userId) {
+    return {
+      accepted: false,
+      reason: 'You cannot place a bid on your own auction.',
     };
   }
 

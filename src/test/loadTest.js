@@ -16,6 +16,7 @@ import { redis } from '../redis/client.js';
 import { channel, connection } from '../mq/connection.js';
 import { startBidConsumer } from '../mq/consumers/bidConsumer.js';
 import { config } from '../config/index.js';
+import { generateToken } from '../utils/auth.js';
 
 // Helper for polling asynchronous database persistence
 async function waitFor(fn, { timeout = 5000, interval = 100 } = {}) {
@@ -73,9 +74,13 @@ async function runLoadTests() {
 
       // 3. Send valid POST request with higher bid
       const bidAmount = 150.0;
+      const tokenA = generateToken({ id: 'user-scenario-a', username: 'scenario_a', email: 'a@test.com' });
       const res = await fetch(`${baseUrl}/auctions/${auctionId}/bids`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokenA}`,
+        },
         body: JSON.stringify({
           userId: 'user-scenario-a',
           bidAmount,
@@ -116,11 +121,15 @@ async function runLoadTests() {
     console.log('\n▶ Running Scenario B: Low Bid / Conflict');
     {
       const auctionId = createdAuctionIds[0]; // Reuse active auction with max_bid = 150
+      const tokenB = generateToken({ id: 'user-scenario-b', username: 'scenario_b', email: 'b@test.com' });
 
       // Send bid lower than current max bid (120 <= 150)
       const res = await fetch(`${baseUrl}/auctions/${auctionId}/bids`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokenB}`,
+        },
         body: JSON.stringify({
           userId: 'user-scenario-b',
           bidAmount: 120.0,
@@ -155,11 +164,15 @@ async function runLoadTests() {
       createdAuctionIds.push(expiredAuctionId);
 
       await redis.set(`auction:${expiredAuctionId}:max_bid`, '50.00');
+      const tokenC = generateToken({ id: 'user-scenario-c', username: 'scenario_c', email: 'c@test.com' });
 
       // 2. Attempt to bid on expired auction
       const res = await fetch(`${baseUrl}/auctions/${expiredAuctionId}/bids`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokenC}`,
+        },
         body: JSON.stringify({
           userId: 'user-scenario-c',
           bidAmount: 75.0,
@@ -192,10 +205,18 @@ async function runLoadTests() {
       const CONCURRENT_COUNT = 50;
       const targetBidAmount = 300.0;
 
-      const requests = Array.from({ length: CONCURRENT_COUNT }, (_, i) =>
-        fetch(`${baseUrl}/auctions/${raceAuctionId}/bids`, {
+      const requests = Array.from({ length: CONCURRENT_COUNT }, (_, i) => {
+        const token = generateToken({
+          id: `user-race-${i + 1}`,
+          username: `race_${i + 1}`,
+          email: `race${i + 1}@test.com`,
+        });
+        return fetch(`${baseUrl}/auctions/${raceAuctionId}/bids`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify({
             userId: `user-race-${i + 1}`,
             bidAmount: targetBidAmount,
@@ -203,8 +224,8 @@ async function runLoadTests() {
         }).then(async (res) => ({
           status: res.status,
           body: await res.json(),
-        }))
-      );
+        }));
+      });
 
       // 3. Fire all requests concurrently
       const results = await Promise.all(requests);

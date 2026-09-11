@@ -5,11 +5,208 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>High-Frequency Live Auction</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Tailwind Config -->
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary-fixed-dim": "#c8c6c5",
+                    "surface-container-low": "#121212",
+                    "tertiary-fixed-dim": "#c6c6c7",
+                    "secondary": "#d97706",
+                    "secondary-container": "#92400e",
+                    "on-tertiary-container": "#818383",
+                    "surface-dim": "#050505",
+                    "secondary-fixed-dim": "#fcd34d",
+                    "on-secondary-container": "#fef3c7",
+                    "on-primary-fixed-variant": "#474746",
+                    "on-tertiary": "#2f3131",
+                    "surface-bright": "#1f1f1f",
+                    "on-secondary-fixed": "#451a03",
+                    "primary": "#e2e8f0",
+                    "secondary-fixed": "#fef3c7",
+                    "background": "#0a0a0a",
+                    "surface-container-high": "#171717",
+                    "tertiary": "#c6c6c7",
+                    "on-tertiary-fixed": "#1a1c1c",
+                    "inverse-surface": "#e2e2e2",
+                    "on-secondary": "#ffffff",
+                    "surface-variant": "#262626",
+                    "error-container": "#d97706",
+                    "on-primary": "#0a0a0a",
+                    "inverse-primary": "#5f5e5e",
+                    "tertiary-container": "#181a1a",
+                    "surface": "#0a0a0a",
+                    "on-primary-fixed": "#1c1b1b",
+                    "surface-container": "#141414",
+                    "outline-variant": "#333333",
+                    "on-secondary-fixed-variant": "#78350f",
+                    "on-tertiary-fixed-variant": "#454747",
+                    "on-error-container": "#ffffff",
+                    "on-surface": "#e2e8f0",
+                    "on-error": "#ffffff",
+                    "primary-container": "#121212",
+                    "tertiary-fixed": "#e2e2e2",
+                    "error": "#d97706",
+                    "inverse-on-surface": "#2f3131",
+                    "on-surface-variant": "#94a3b8",
+                    "on-primary-container": "#e2e8f0",
+                    "primary-fixed": "#e5e2e1",
+                    "surface-tint": "#c8c6c5",
+                    "on-background": "#e2e8f0",
+                    "surface-container-highest": "#262626",
+                    "outline": "#475569",
+                    "surface-container-lowest": "#000000"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "base": "8px",
+                    "card-padding": "24px",
+                    "gutter": "24px",
+                    "container-margin": "32px",
+                    "section-gap": "64px"
+            },
+            "fontFamily": {
+                    "headline-md": [
+                            "Montserrat"
+                    ],
+                    "display-lg": [
+                            "Montserrat"
+                    ],
+                    "label-sm": [
+                            "Inter"
+                    ],
+                    "body-md": [
+                            "Inter"
+                    ],
+                    "label-bold": [
+                            "Inter"
+                    ],
+                    "body-lg": [
+                            "Inter"
+                    ],
+                    "price-display": [
+                            "Montserrat"
+                    ],
+                    "display-lg-mobile": [
+                            "Montserrat"
+                    ],
+                    "headline-sm": [
+                            "Montserrat"
+                    ]
+            },
+            "fontSize": {
+                    "headline-md": [
+                            "24px",
+                            {
+                                    "lineHeight": "32px",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "display-lg": [
+                            "48px",
+                            {
+                                    "lineHeight": "56px",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "800"
+                            }
+                    ],
+                    "label-sm": [
+                            "12px",
+                            {
+                                    "lineHeight": "16px",
+                                    "fontWeight": "500"
+                            }
+                    ],
+                    "body-md": [
+                            "16px",
+                            {
+                                    "lineHeight": "24px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "label-bold": [
+                            "14px",
+                            {
+                                    "lineHeight": "20px",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "body-lg": [
+                            "18px",
+                            {
+                                    "lineHeight": "28px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "price-display": [
+                            "32px",
+                            {
+                                    "lineHeight": "32px",
+                                    "letterSpacing": "-0.01em",
+                                    "fontWeight": "800"
+                            }
+                    ],
+                    "display-lg-mobile": [
+                            "32px",
+                            {
+                                    "lineHeight": "38px",
+                                    "letterSpacing": "-0.01em",
+                                    "fontWeight": "800"
+                            }
+                    ],
+                    "headline-sm": [
+                            "20px",
+                            {
+                                    "lineHeight": "28px",
+                                    "fontWeight": "700"
+                            }
+                    ]
+            }
+        },
+        },
+      }
+    </script>
+
+    <!-- Material Symbols Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    
+    <!-- Google Fonts: Inter and Montserrat -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Montserrat:wght@100..900&display=swap" rel="stylesheet">
+
+    <style>
+      @layer base {
+        html, body {
+          margin: 0;
+          padding: 0;
+        }
+        body {
+          overscroll-behavior: none;
+        }
+        main > :first-child {
+          margin-top: 0 !important;
+        }
+        main > :last-child {
+          margin-bottom: 0 !important;
+        }
+      }
+      ::-webkit-scrollbar {
+        display: none;
+      }
+    </style>
   </head>
-  <body>
+  <body class="bg-surface font-body-md text-on-surface">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

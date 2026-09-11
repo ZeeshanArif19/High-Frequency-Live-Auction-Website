@@ -32,4 +32,9 @@ export const config = Object.freeze({
     url: process.env.RABBITMQ_URL ?? "amqp://guest:guest@localhost:5672",
     bidQueue: process.env.RABBITMQ_BID_QUEUE ?? "bid_persist_queue",
   },
+
+  jwt: {
+    secret: process.env.JWT_SECRET ?? "auction_jwt_secret_key_default_development",
+    expiresIn: process.env.JWT_EXPIRES_IN ?? "24h",
+  },
 });
