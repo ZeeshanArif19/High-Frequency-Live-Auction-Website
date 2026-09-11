@@ -14,6 +14,7 @@ try {
 
 export const config = Object.freeze({
   port: parseInt(process.env.PORT ?? "3000", 10),
+  lifecycleIntervalMs: parseInt(process.env.LIFECYCLE_INTERVAL_MS ?? "1000", 10),
 
   db: {
     host: process.env.DB_HOST ?? "localhost",
@@ -36,5 +37,9 @@ export const config = Object.freeze({
   jwt: {
     secret: process.env.JWT_SECRET ?? "auction_jwt_secret_key_default_development",
     expiresIn: process.env.JWT_EXPIRES_IN ?? "24h",
+  },
+
+  payment: {
+    webhookSecret: process.env.PAYMENT_WEBHOOK_SECRET ?? "sandbox_payment_webhook_secret",
   },
 });

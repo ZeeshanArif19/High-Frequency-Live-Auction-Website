@@ -10,6 +10,7 @@ import { useAuction } from '../../hooks/useAuction.js';
 import { formatINR, getTimeRemaining } from '../../services/formatters.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { ManageAuctionModal } from './ManageAuctionModal.jsx';
+import { initiateAuctionPayment } from '../../services/auctionService.js';
 
 export function BiddingTerminal({ product, onAuctionUpdated, onAuctionDeleted }) {
   const auctionId = product?.id;
@@ -28,23 +29,41 @@ export function BiddingTerminal({ product, onAuctionUpdated, onAuctionDeleted })
 
   const activeAuction = auction || product;
   const currentMaxBidNumber = Number(activeAuction?.current_max_bid || activeAuction?.starting_price || 0);
+  const auctionStatus = activeAuction?.status || 'UNKNOWN';
+  const isScheduled = auctionStatus === 'SCHEDULED';
+  const isLive = auctionStatus === 'LIVE';
+  const isPostAuction = ['ENDED', 'PAYMENT_PENDING', 'SETTLED'].includes(auctionStatus);
 
   const [bidAmount, setBidAmount] = useState('');
-  const [timeLeft, setTimeLeft] = useState(() => getTimeRemaining(activeAuction?.end_time));
+  const [timeLeft, setTimeLeft] = useState(() =>
+    getTimeRemaining(isScheduled ? activeAuction?.start_time : activeAuction?.end_time)
+  );
   const [manageModalOpen, setManageModalOpen] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState('idle');
 
   // Check if authenticated user is the auction owner
   const isOwner = Boolean(user && activeAuction?.owner_id && activeAuction.owner_id === user.id);
+  const isWinner = Boolean(user && activeAuction?.winner_user_id === user.id);
+
+  const handlePayment = async () => {
+    setPaymentStatus('pending');
+    try {
+      await initiateAuctionPayment(activeAuction.id);
+      setPaymentStatus('initiated');
+    } catch {
+      setPaymentStatus('error');
+    }
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setTimeLeft(getTimeRemaining(activeAuction?.end_time));
+      setTimeLeft(getTimeRemaining(isScheduled ? activeAuction?.start_time : activeAuction?.end_time));
     }, 1000);
     return () => clearInterval(timer);
-  }, [activeAuction?.end_time]);
+  }, [activeAuction?.end_time, activeAuction?.start_time, isScheduled]);
 
   const handleQuickBid = (increment) => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !isLive) {
       openLogin();
       return;
     }
@@ -56,7 +75,7 @@ export function BiddingTerminal({ product, onAuctionUpdated, onAuctionDeleted })
   };
 
   const handlePlaceBid = async () => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !isLive) {
       openLogin();
       return;
     }
@@ -74,7 +93,7 @@ export function BiddingTerminal({ product, onAuctionUpdated, onAuctionDeleted })
     });
   };
 
-  const isEnded = timeLeft === '00:00:00';
+  const isEnded = timeLeft === '00:00:00' && !isScheduled;
 
   return (
     <div className="flex flex-col gap-6 h-full">
@@ -96,7 +115,7 @@ export function BiddingTerminal({ product, onAuctionUpdated, onAuctionDeleted })
             {timeLeft}
           </div>
           <p className="text-label-sm text-on-surface-variant text-[11px] mt-1">
-            {isEnded ? 'Auction Concluded' : 'Time Remaining to Close'}
+              {isScheduled ? 'Time Until Auction Opens' : isPostAuction ? 'Auction Concluded' : 'Time Remaining to Close'}
           </p>
         </div>
       </div>
@@ -178,24 +197,45 @@ export function BiddingTerminal({ product, onAuctionUpdated, onAuctionDeleted })
           </div>
         )}
 
+        {isPostAuction && (
+          <div className="mb-4 p-3 bg-surface-container-high border border-outline-variant/30 rounded-lg text-xs text-on-surface-variant relative z-10">
+            <strong className="text-on-surface">{auctionStatus.replace('_', ' ')}</strong>
+            {activeAuction.winner_user_id
+              ? isWinner
+                ? ' You are the selected winner.'
+                : ' The selected winner has been notified.'
+              : ' No winning bid was recorded.'}
+            {auctionStatus === 'PAYMENT_PENDING' && isWinner && (
+              <button
+                type="button"
+                onClick={handlePayment}
+                disabled={paymentStatus !== 'idle'}
+                className="block mt-3 bg-secondary text-on-secondary px-3 py-2 rounded font-label-bold disabled:opacity-50"
+              >
+                {paymentStatus === 'pending' ? 'Creating Sandbox Order...' : paymentStatus === 'initiated' ? 'Payment Order Created' : 'Initiate Payment'}
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Quick Increment Buttons */}
         <div className="grid grid-cols-3 gap-2 mb-4 relative z-10">
           <button
-            disabled={isEnded || isOwner || !isAuthenticated}
+            disabled={!isLive || isOwner || !isAuthenticated}
             onClick={() => handleQuickBid(100000)}
             className="bg-surface-container-high hover:bg-surface-bright text-on-surface font-label-bold text-xs py-2.5 rounded shadow-sm border border-outline-variant/30 hover:border-secondary/50 transition-all disabled:opacity-40"
           >
             + ₹1,00,000
           </button>
           <button
-            disabled={isEnded || isOwner || !isAuthenticated}
+            disabled={!isLive || isOwner || !isAuthenticated}
             onClick={() => handleQuickBid(500000)}
             className="bg-surface-container-high hover:bg-surface-bright text-on-surface font-label-bold text-xs py-2.5 rounded shadow-sm border border-outline-variant/30 hover:border-secondary/50 transition-all disabled:opacity-40"
           >
             + ₹5,00,000
           </button>
           <button
-            disabled={isEnded || isOwner || !isAuthenticated}
+            disabled={!isLive || isOwner || !isAuthenticated}
             onClick={() => handleQuickBid(1000000)}
             className="bg-surface-container-high hover:bg-surface-bright text-on-surface font-label-bold text-xs py-2.5 rounded shadow-sm border border-outline-variant/30 hover:border-secondary/50 transition-all disabled:opacity-40"
           >
@@ -211,7 +251,7 @@ export function BiddingTerminal({ product, onAuctionUpdated, onAuctionDeleted })
             </span>
             <input
               type="text"
-              disabled={isEnded || isOwner || !isAuthenticated}
+              disabled={!isLive || isOwner || !isAuthenticated}
               value={bidAmount}
               onChange={(e) => {
                 setBidAmount(e.target.value.replace(/[^0-9]/g, ''));
@@ -222,6 +262,8 @@ export function BiddingTerminal({ product, onAuctionUpdated, onAuctionDeleted })
                   ? 'Bidding disabled on own lot'
                   : !isAuthenticated
                   ? 'Sign in to enter bid'
+                  : !isLive
+                  ? `${auctionStatus.replace('_', ' ')} - bidding unavailable`
                   : `Min > ${currentMaxBidNumber.toLocaleString()}`
               }
               className="w-full bg-background border border-outline-variant text-on-surface font-headline-sm text-lg py-3.5 pl-10 pr-4 rounded-lg focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary/50 shadow-inner transition-all placeholder:text-on-surface-variant/40 tabular-nums font-mono disabled:opacity-40"
@@ -265,11 +307,11 @@ export function BiddingTerminal({ product, onAuctionUpdated, onAuctionDeleted })
             </button>
           ) : (
             <button
-              disabled={isEnded || bidStatus.state === 'pending'}
+              disabled={!isLive || bidStatus.state === 'pending'}
               onClick={handlePlaceBid}
               className="w-full mt-3 bg-secondary text-on-secondary hover:bg-secondary/90 transition-all py-3.5 rounded-lg font-label-bold text-label-bold tracking-widest uppercase shadow-[0_0_15px_rgba(217,119,6,0.3)] hover:shadow-[0_0_25px_rgba(217,119,6,0.5)] disabled:opacity-40 cursor-pointer"
             >
-              {bidStatus.state === 'pending' ? 'Submitting Bid...' : 'Submit Atomic Bid'}
+              {!isLive ? `${auctionStatus.replace('_', ' ')} - Bidding Closed` : bidStatus.state === 'pending' ? 'Submitting Bid...' : 'Submit Atomic Bid'}
             </button>
           )}
         </div>

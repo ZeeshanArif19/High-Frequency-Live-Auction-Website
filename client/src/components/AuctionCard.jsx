@@ -18,21 +18,22 @@ function formatDuration(ms) {
 }
 
 export function AuctionCard({ auction, priceFlash, wsConnected }) {
+  const countdownTarget = auction?.status === 'SCHEDULED' ? auction?.start_time : auction?.end_time;
   const [timeLeft, setTimeLeft] = useState(() => {
-    if (!auction?.end_time) return 0;
-    return new Date(auction.end_time).getTime() - Date.now();
+    if (!countdownTarget) return 0;
+    return new Date(countdownTarget).getTime() - Date.now();
   });
 
   useEffect(() => {
-    if (!auction?.end_time) return;
+    if (!countdownTarget) return;
 
     const interval = setInterval(() => {
-      const remaining = new Date(auction.end_time).getTime() - Date.now();
+      const remaining = new Date(countdownTarget).getTime() - Date.now();
       setTimeLeft(Math.max(0, remaining));
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [auction?.end_time]);
+  }, [countdownTarget]);
 
   if (!auction) {
     return (
@@ -42,7 +43,9 @@ export function AuctionCard({ auction, priceFlash, wsConnected }) {
     );
   }
 
-  const isEnded = timeLeft <= 0;
+  const status = auction.status || (timeLeft <= 0 ? 'ENDED' : 'LIVE');
+  const isScheduled = status === 'SCHEDULED';
+  const isEnded = ['ENDED', 'PAYMENT_PENDING', 'SETTLED'].includes(status);
   const currentMaxBid = Number(auction.current_max_bid ?? auction.starting_price ?? 0);
   const startingPrice = Number(auction.starting_price ?? 0);
 
@@ -52,7 +55,7 @@ export function AuctionCard({ auction, priceFlash, wsConnected }) {
         <div className="status-tags">
           <span className={`badge ${isEnded ? 'badge-ended' : 'badge-live'}`}>
             <span className="pulse-dot"></span>
-            {isEnded ? 'ENDED' : 'LIVE AUCTION'}
+            {status.replace('_', ' ')}
           </span>
           <span className={`ws-badge ${wsConnected ? 'ws-online' : 'ws-offline'}`}>
             {wsConnected ? '⚡ Real-time Stream' : 'Connecting stream...'}
@@ -80,7 +83,11 @@ export function AuctionCard({ auction, priceFlash, wsConnected }) {
             {isEnded ? '00:00:00' : formatDuration(timeLeft)}
           </span>
           <span className="metric-sub">
-            {isEnded ? 'Bidding is closed' : `Ends: ${new Date(auction.end_time).toLocaleTimeString()}`}
+            {isScheduled
+              ? `Opens: ${new Date(auction.start_time).toLocaleTimeString()}`
+              : isEnded
+              ? 'Bidding is closed'
+              : `Ends: ${new Date(auction.end_time).toLocaleTimeString()}`}
           </span>
         </div>
       </div>

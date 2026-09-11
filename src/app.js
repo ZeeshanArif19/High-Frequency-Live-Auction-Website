@@ -8,6 +8,7 @@
 import express from 'express';
 import { router as auctionsRouter } from './api/routes/auctions.js';
 import { router as authRouter } from './api/routes/auth.js';
+import { router as paymentsRouter } from './api/routes/payments.js';
 import { errorHandler } from './api/middleware/errorHandler.js';
 
 export const app = express();
@@ -22,11 +23,16 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.use(express.json());
+app.use(express.json({
+  verify: (req, res, buffer) => {
+    req.rawBody = Buffer.from(buffer);
+  },
+}));
 
 // ── Route Handlers ───────────────────────────────────────────────────────────
 app.use('/auth', authRouter);
 app.use('/auctions', auctionsRouter);
+app.use('/payments', paymentsRouter);
 
 // ── Centralized Error Handler ────────────────────────────────────────────────
 app.use(errorHandler);

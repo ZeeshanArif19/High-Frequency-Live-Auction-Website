@@ -10,6 +10,7 @@ import { config } from './config/index.js';
 import { channel } from './mq/connection.js';
 import { startBidConsumer } from './mq/consumers/bidConsumer.js';
 import { initWebSocketServer } from './ws/server.js';
+import { startAuctionLifecycleScheduler } from './services/auctionLifecycleScheduler.js';
 
 const PORT = config.port;
 
@@ -21,6 +22,8 @@ export const server = app.listen(PORT, async () => {
   try {
     await startBidConsumer(channel);
     console.log('[Server] Bid consumer initialized successfully');
+    await startAuctionLifecycleScheduler(config.lifecycleIntervalMs);
+    console.log('[Server] Auction lifecycle scheduler initialized successfully');
   } catch (err) {
     console.error('[Server] Failed to initialize Bid consumer:', err.message);
   }

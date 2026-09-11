@@ -27,16 +27,16 @@ import { pool } from '../pool.js';
  * @param {import('pg').PoolClient} [client] - Transactional client (optional).
  * @returns {Promise<import('pg').QueryResult>}
  */
-export async function insertBid({ auctionId, userId, bidAmount }, client) {
+export async function insertBid({ auctionId, userId, bidAmount, acceptedAt }, client) {
   const executor = client ?? pool;
 
   const sql = `
-    INSERT INTO bids (auction_id, user_id, bid_amount)
-    VALUES ($1, $2, $3)
-    RETURNING id, auction_id, user_id, bid_amount, created_at
+    INSERT INTO bids (auction_id, user_id, bid_amount, accepted_at)
+    VALUES ($1, $2, $3, COALESCE($4::timestamptz, CURRENT_TIMESTAMP))
+    RETURNING id, auction_id, user_id, bid_amount, created_at, accepted_at
   `;
 
-  return executor.query(sql, [auctionId, userId, bidAmount]);
+  return executor.query(sql, [auctionId, userId, bidAmount, acceptedAt ?? null]);
 }
 
 // ── updateAuctionMaxBid ───────────────────────────────────────────────────────

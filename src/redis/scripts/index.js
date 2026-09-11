@@ -17,10 +17,13 @@ const __dirname = dirname(__filename);
 // Load and register the Lua script on module initialisation
 const luaPath = join(__dirname, 'try_place_bid.lua');
 const luaSource = await readFile(luaPath, 'utf8');
+const initializeStateLuaPath = join(__dirname, 'initialize_auction_state.lua');
+const initializeStateLuaSource = await readFile(initializeStateLuaPath, 'utf8');
 
 // SCRIPT LOAD returns the SHA1 digest; we store it and invoke via EVALSHA
 // so the script is transmitted only once across the lifetime of the process.
 const tryPlaceBidSha = await redis.script('LOAD', luaSource);
+const initializeStateSha = await redis.script('LOAD', initializeStateLuaSource);
 
 /**
  * Atomically attempt to place a bid for a given auction.
@@ -37,4 +40,9 @@ export async function tryPlaceBid(auctionId, bidAmount) {
   const key = `auction:${auctionId}:max_bid`;
   const result = await redis.evalsha(tryPlaceBidSha, 1, key, String(bidAmount));
   return result === 1;
+}
+
+export async function initializeAuctionState(auctionId, currentMaxBid) {
+  const key = `auction:${auctionId}:max_bid`;
+  await redis.evalsha(initializeStateSha, 1, key, String(currentMaxBid));
 }

@@ -10,6 +10,11 @@ import { z } from 'zod';
 import { pool } from '../../db/pool.js';
 import redis from '../../redis/client.js';
 import { submitBid } from '../../services/bidService.js';
+import {
+  AUCTION_STATUSES,
+} from '../../services/auctionLifecycleService.js';
+import { createPaymentOrder } from '../../services/paymentService.js';
+import { initializeAuctionState } from '../../redis/scripts/index.js';
 import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -191,7 +196,8 @@ router.get('/', async (req, res, next) => {
     const sql = `
       SELECT id, COALESCE(title, item_name) AS title, item_name, starting_price,
              current_max_bid, start_time, end_time, minimum_bid_increment,
-             description, category, image_url, lot_number, owner_id
+             description, category, image_url, lot_number, owner_id,
+             status, winner_user_id, winning_bid_id, payment_deadline, ended_at, settled_at
       FROM   auctions
       ORDER BY end_time ASC
     `;
@@ -215,7 +221,7 @@ router.get('/user/my-bids', requireAuth, async (req, res, next) => {
     const sql = `
       SELECT b.id, b.auction_id, b.user_id, b.bid_amount, b.created_at,
              COALESCE(a.title, a.item_name) AS title, a.item_name,
-             a.current_max_bid, a.start_time, a.end_time, a.image_url
+             a.current_max_bid, a.start_time, a.end_time, a.image_url, a.status
       FROM bids b
       JOIN auctions a ON a.id = b.auction_id
       WHERE b.user_id = $1
@@ -241,7 +247,8 @@ router.get('/user/my-auctions', requireAuth, async (req, res, next) => {
       SELECT a.id, COALESCE(a.title, a.item_name) AS title, a.item_name, a.starting_price,
              a.current_max_bid, a.start_time, a.end_time, a.minimum_bid_increment,
              a.description, a.category, a.image_url, a.lot_number, a.owner_id,
-             COUNT(b.id)::int AS bid_count
+             a.status, a.winner_user_id, a.winning_bid_id, a.payment_deadline,
+             a.ended_at, a.settled_at, COUNT(b.id)::int AS bid_count
       FROM auctions a
       LEFT JOIN bids b ON b.auction_id = a.id
       WHERE a.owner_id = $1
@@ -283,12 +290,13 @@ router.post(
       const insertSql = `
         INSERT INTO auctions (
           title, item_name, starting_price, current_max_bid, start_time, end_time,
-          minimum_bid_increment, description, category, image_url, lot_number, owner_id
+          minimum_bid_increment, description, category, image_url, lot_number, owner_id, status
         )
-        VALUES ($1, $1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES ($1, $1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+                CASE WHEN $3::timestamptz <= CURRENT_TIMESTAMP THEN 'LIVE' ELSE 'SCHEDULED' END)
         RETURNING id, COALESCE(title, item_name) AS title, item_name, starting_price,
                   current_max_bid, start_time, end_time, minimum_bid_increment,
-                  description, category, image_url, lot_number, owner_id
+                  description, category, image_url, lot_number, owner_id, status
       `;
 
       const { rows } = await pool.query(insertSql, [
@@ -306,8 +314,9 @@ router.post(
 
       const createdAuction = rows[0];
 
-      // Initialize Redis max_bid for this auction
-      await redis.set(`auction:${createdAuction.id}:max_bid`, String(startingPrice));
+      if (createdAuction.status === AUCTION_STATUSES.LIVE) {
+        await initializeAuctionState(createdAuction.id, startingPrice);
+      }
 
       return res.status(201).json(createdAuction);
     } catch (err) {
@@ -330,7 +339,8 @@ router.get(
       const sql = `
         SELECT id, COALESCE(title, item_name) AS title, item_name, starting_price,
                current_max_bid, start_time, end_time, minimum_bid_increment,
-               description, category, image_url, lot_number, owner_id
+               description, category, image_url, lot_number, owner_id,
+               status, winner_user_id, winning_bid_id, payment_deadline, ended_at, settled_at
         FROM   auctions
         WHERE  id = $1
       `;
@@ -369,7 +379,7 @@ router.put(
       // 1. Check if auction exists and retrieve current owner and state
       const checkSql = `
         SELECT id, COALESCE(title, item_name) AS title, item_name, starting_price,
-               current_max_bid, start_time, end_time, minimum_bid_increment, owner_id
+               current_max_bid, start_time, end_time, minimum_bid_increment, owner_id, status
         FROM auctions
         WHERE id = $1
       `;
@@ -386,6 +396,13 @@ router.put(
         return res.status(403).json({
           error: 'Forbidden: You do not have permission to modify this auction.',
         });
+      }
+
+      if (auction.status === AUCTION_STATUSES.SETTLED) {
+        return res.status(400).json({ error: 'Settled auctions cannot be modified.' });
+      }
+      if (auction.status === AUCTION_STATUSES.ENDED || auction.status === AUCTION_STATUSES.PAYMENT_PENDING) {
+        return res.status(400).json({ error: 'Completed auctions cannot be modified.' });
       }
 
       // 3. Lifecycle checks
@@ -418,7 +435,7 @@ router.put(
         req.body.endTime !== undefined ||
         req.body.end_time !== undefined;
 
-      if (isLive) {
+      if (auction.status === AUCTION_STATUSES.LIVE || isLive) {
         // Once an auction is LIVE:
         // Prevent modifications that break bidding consistency
         if (bidCount > 0) {
@@ -482,7 +499,8 @@ router.put(
         WHERE id = $1
         RETURNING id, COALESCE(title, item_name) AS title, item_name, starting_price,
                   current_max_bid, start_time, end_time, minimum_bid_increment,
-                  description, category, image_url, lot_number, owner_id
+                  description, category, image_url, lot_number, owner_id, status,
+                  winner_user_id, winning_bid_id, payment_deadline, ended_at, settled_at
       `;
 
       const { rows: updatedRows } = await pool.query(updateSql, [
@@ -528,7 +546,7 @@ router.delete(
       const userId = req.user.id;
 
       // 1. Check if auction exists and retrieve current owner
-      const checkSql = `SELECT id, owner_id FROM auctions WHERE id = $1`;
+      const checkSql = `SELECT id, owner_id, status FROM auctions WHERE id = $1`;
       const { rows: existingRows } = await pool.query(checkSql, [id]);
 
       if (existingRows.length === 0) {
@@ -542,6 +560,10 @@ router.delete(
         return res.status(403).json({
           error: 'Forbidden: You do not have permission to delete this auction.',
         });
+      }
+
+      if (auction.status !== AUCTION_STATUSES.SCHEDULED) {
+        return res.status(400).json({ error: 'Only scheduled auctions can be deleted.' });
       }
 
       // 3. Lifecycle enforcement: Cannot delete/cancel once bids have been placed
@@ -597,6 +619,24 @@ router.get(
   }
 );
 
+router.post(
+  '/:id/payment',
+  requireAuth,
+  validate({ params: auctionParamsSchema }),
+  async (req, res, next) => {
+    try {
+      const payment = await createPaymentOrder({
+        auctionId: req.params.id,
+        userId: req.user.id,
+      });
+
+      return res.status(201).json(payment);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 /**
  * POST /auctions/:id/bids
  * Submits a new bid to the auction pipeline.
@@ -635,7 +675,7 @@ router.post(
         });
       }
 
-      if (result.reason?.includes('not found') || result.reason?.includes('ended')) {
+      if (result.reason?.includes('not found')) {
         return res.status(404).json({
           accepted: false,
           error: result.reason,

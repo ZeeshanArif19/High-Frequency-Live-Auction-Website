@@ -11,6 +11,9 @@
     "seed": "node src/db/seed.js",
     "test": "node src/test/authAndAuthorization.test.js",
     "test:auth": "node src/test/authAndAuthorization.test.js",
+    "test:lifecycle": "node src/test/auctionLifecycle.test.js",
+    "test:payment": "node src/test/payment.test.js",
+    "test:payment-expiry": "node src/test/paymentExpiry.test.js",
     "test:load": "node src/test/loadTest.js"
   },
   "keywords": [],

@@ -56,6 +56,20 @@ export function useAuction(auctionId) {
     };
   }, [auctionId]);
 
+  // Lifecycle transitions are server-controlled; refresh metadata separately
+  // from the WebSocket bid stream so the UI reflects scheduler transitions.
+  useEffect(() => {
+    if (!auctionId) return undefined;
+
+    const interval = setInterval(() => {
+      fetchAuction(auctionId)
+        .then((latestAuction) => setAuction(latestAuction))
+        .catch(() => {});
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [auctionId]);
+
   // Connect WebSocket and listen for real-time bid updates
   useEffect(() => {
     wsService.connect();
@@ -118,6 +132,12 @@ export function useAuction(auctionId) {
     async ({ userId, bidAmount }) => {
       if (!auctionId) {
         setBidStatus({ state: 'error', message: 'No active auction selected.' });
+        return { success: false };
+      }
+
+      if (auction?.status !== 'LIVE') {
+        const status = auction?.status || 'UNKNOWN';
+        setBidStatus({ state: 'error', message: `Bidding is unavailable while this auction is ${status}.` });
         return { success: false };
       }
 

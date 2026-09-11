@@ -20,28 +20,6 @@ import { tryPlaceBid } from '../redis/scripts/index.js';
 import { channel } from '../mq/connection.js';
 import { config } from '../config/index.js';
 
-// ── Internal helpers ──────────────────────────────────────────────────────────
-
-/**
- * Fetch the auction row only when it exists AND has not yet expired.
- * The expiry guard is applied server-side so that clock skew between
- * application servers cannot produce inconsistent results.
- *
- * @param {string} auctionId
- * @returns {Promise<object|null>} Auction row or null if not found / expired.
- */
-async function fetchActiveAuction(auctionId) {
-  const sql = `
-    SELECT id, COALESCE(title, item_name) AS title, item_name, starting_price,
-           current_max_bid, start_time, end_time, minimum_bid_increment, owner_id
-    FROM   auctions
-    WHERE  id = $1
-  `;
-
-  const { rows } = await pool.query(sql, [auctionId]);
-  return rows[0] ?? null;
-}
-
 // ── Exported service ──────────────────────────────────────────────────────────
 
 /**
@@ -51,59 +29,69 @@ async function fetchActiveAuction(auctionId) {
  * @returns {Promise<{ accepted: true } | { accepted: false, reason: string }>}
  */
 export async function submitBid({ auctionId, userId, bidAmount }) {
-  // ── Step 1: Verify the auction exists and is still active ─────────────────
-  const auction = await fetchActiveAuction(auctionId);
+  const client = await pool.connect();
+  let committed = false;
 
-  if (!auction) {
-    return {
-      accepted: false,
-      reason: 'Auction not found.',
-    };
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(`
+      SELECT id, status, owner_id,
+             CURRENT_TIMESTAMP < start_time AS before_start,
+             CURRENT_TIMESTAMP >= end_time AS after_end,
+             CURRENT_TIMESTAMP AS accepted_at
+      FROM auctions
+      WHERE id = $1
+      FOR UPDATE
+    `, [auctionId]);
+
+    const auction = rows[0];
+    if (!auction) {
+      await client.query('ROLLBACK');
+      return { accepted: false, reason: 'Auction not found.' };
+    }
+
+    if (auction.status === 'SCHEDULED' || auction.before_start) {
+      await client.query('ROLLBACK');
+      return { accepted: false, reason: 'Auction has not started yet.' };
+    }
+
+    if (auction.status !== 'LIVE' || auction.after_end) {
+      await client.query('ROLLBACK');
+      return { accepted: false, reason: 'Auction is not accepting bids.' };
+    }
+
+    if (auction.owner_id && auction.owner_id === userId) {
+      await client.query('ROLLBACK');
+      return { accepted: false, reason: 'You cannot place a bid on your own auction.' };
+    }
+
+    const accepted = await tryPlaceBid(auctionId, bidAmount);
+    if (!accepted) {
+      await client.query('ROLLBACK');
+      return { accepted: false, reason: 'Bid amount must exceed the current maximum bid.' };
+    }
+
+    const payload = Buffer.from(JSON.stringify({
+      auctionId,
+      userId,
+      bidAmount,
+      acceptedAt: auction.accepted_at.toISOString(),
+    }));
+
+    channel.sendToQueue(config.rabbitmq.bidQueue, payload, {
+      persistent: true,
+      contentType: 'application/json',
+    });
+
+    await client.query('COMMIT');
+    committed = true;
+    return { accepted: true };
+  } catch (error) {
+    if (!committed) {
+      await client.query('ROLLBACK').catch(() => {});
+    }
+    throw error;
+  } finally {
+    client.release();
   }
-
-  const now = Date.now();
-  if (now < new Date(auction.start_time).getTime()) {
-    return {
-      accepted: false,
-      reason: 'Auction has not started yet.',
-    };
-  }
-
-  if (now >= new Date(auction.end_time).getTime()) {
-    return {
-      accepted: false,
-      reason: 'Auction has already ended.',
-    };
-  }
-
-  // ── Step 1b: Verify bidder is not the auction owner ───────────────────────
-  if (auction.owner_id && auction.owner_id === userId) {
-    return {
-      accepted: false,
-      reason: 'You cannot place a bid on your own auction.',
-    };
-  }
-
-  // ── Step 2: Atomically compare-and-set via Redis Lua script ───────────────
-  const accepted = await tryPlaceBid(auctionId, bidAmount);
-
-  if (!accepted) {
-    return {
-      accepted: false,
-      reason: 'Bid amount must exceed the current maximum bid.',
-    };
-  }
-
-  // ── Step 3: Publish to bid_persist_queue for async DB persistence ─────────
-  const payload = Buffer.from(
-    JSON.stringify({ auctionId, userId, bidAmount })
-  );
-
-  channel.sendToQueue(config.rabbitmq.bidQueue, payload, {
-    persistent: true, // survive broker restart
-    contentType: 'application/json',
-  });
-
-  // ── Step 4: Return acceptance confirmation ────────────────────────────────
-  return { accepted: true };
 }

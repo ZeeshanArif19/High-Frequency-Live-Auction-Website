@@ -7,6 +7,7 @@
 import { pool } from './pool.js';
 import { redis } from '../redis/client.js';
 import { hashPassword } from '../utils/auth.js';
+import { initializeAuctionState } from '../redis/scripts/index.js';
 
 const DEMO_AUCTIONS = [
   {
@@ -146,9 +147,7 @@ export async function seedDemoAuctions() {
     const auction = rows[0];
     insertedAuctions.push(auction);
 
-    // Set Redis max_bid key
-    const redisKey = `auction:${auction.id}:max_bid`;
-    await redis.set(redisKey, auction.current_max_bid.toString());
+    await initializeAuctionState(auction.id, auction.current_max_bid);
 
     // Insert bid history
     for (const bid of item.bids) {

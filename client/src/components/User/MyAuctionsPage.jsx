@@ -13,10 +13,11 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { formatINR } from '../../services/formatters.js';
 
 function getLifecycleStatus(auction) {
+  if (auction.status) return auction.status;
   const now = Date.now();
   const startMs = new Date(auction.start_time).getTime();
   const endMs = new Date(auction.end_time).getTime();
-  if (now >= endMs) return 'CONCLUDED';
+  if (now >= endMs) return 'ENDED';
   if (now >= startMs) return 'LIVE';
   return 'SCHEDULED';
 }
@@ -25,9 +26,17 @@ function LifecyclePill({ status }) {
   const cfg = {
     LIVE: 'bg-secondary/15 text-secondary border-secondary/40',
     SCHEDULED: 'bg-surface-container-highest text-on-surface-variant border-outline-variant/40',
-    CONCLUDED: 'bg-outline/15 text-on-surface-variant border-outline/20',
+    ENDED: 'bg-outline/15 text-on-surface-variant border-outline/20',
+    PAYMENT_PENDING: 'bg-error/10 text-error border-error/30',
+    SETTLED: 'bg-green-400/10 text-green-400 border-green-400/30',
   };
-  const icon = { LIVE: 'radio_button_checked', SCHEDULED: 'schedule', CONCLUDED: 'check_circle' };
+  const icon = {
+    LIVE: 'radio_button_checked',
+    SCHEDULED: 'schedule',
+    ENDED: 'check_circle',
+    PAYMENT_PENDING: 'payments',
+    SETTLED: 'verified',
+  };
   return (
     <span
       className={`inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${cfg[status]}`}

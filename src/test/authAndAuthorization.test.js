@@ -47,8 +47,7 @@ async function waitFor(fn, { timeout = 5000, interval = 100 } = {}) {
 }
 
 function databaseTime(offsetMs) {
-  const timezoneOffsetMs = new Date().getTimezoneOffset() * 60000;
-  return new Date(Date.now() + offsetMs - timezoneOffsetMs).toISOString();
+  return new Date(Date.now() + offsetMs).toISOString();
 }
 
 async function runAuthTests() {

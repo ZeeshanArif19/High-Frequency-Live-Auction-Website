@@ -231,6 +231,23 @@ export async function deleteAuction(auctionId) {
   return data;
 }
 
+export async function initiateAuctionPayment(auctionId) {
+  const response = await fetch(`${API_BASE_URL}/auctions/${auctionId}/payment`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+
+  const data = await parseResponseBody(response);
+  if (!response.ok) {
+    const error = new Error(data.error || `Failed to initiate payment (${response.status})`);
+    error.status = response.status;
+    error.data = data;
+    throw error;
+  }
+
+  return data;
+}
+
 /**
  * Fetches the bidding history for the currently logged in user.
  *

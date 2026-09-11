@@ -33,6 +33,17 @@ export function ManageAuctionModal({ isOpen, auction, onClose, onUpdated, onDele
   // Lifecycle state computation
   const { isLive, isEnded, hasBids, canDelete, canEditBiddingFields } = useMemo(() => {
     if (!auction) return { isLive: false, isEnded: false, hasBids: false, canDelete: true, canEditBiddingFields: true };
+    if (auction.status) {
+      const hasBids = (auction.bid_count ?? 0) > 0;
+      return {
+        isLive: auction.status === 'LIVE',
+        isEnded: ['ENDED', 'PAYMENT_PENDING', 'SETTLED'].includes(auction.status),
+        hasBids,
+        canDelete: auction.status === 'SCHEDULED' && !hasBids,
+        canEditBiddingFields: auction.status === 'SCHEDULED' && !hasBids,
+      };
+    }
+
     const now = Date.now();
     const startMs = new Date(auction.start_time).getTime();
     const endMs = new Date(auction.end_time).getTime();
