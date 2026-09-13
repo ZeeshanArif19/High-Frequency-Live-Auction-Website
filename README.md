@@ -9,6 +9,7 @@ A production-ready, event-driven live auction platform built for **high concurre
 ## 🎯 Key Features
 
 ### Bidding & Auction Lifecycle
+
 - **Atomic bid arbitration** using Redis Lua scripts—prevents duplicate winners under concurrent traffic
 - **Asynchronous transactional persistence** via RabbitMQ—HTTP endpoints return in ~100ms; database writes follow via worker
 - **Six-stage auction lifecycle**: SCHEDULED → LIVE → ENDED → PAYMENT_PENDING → SETTLED/UNSOLD
@@ -16,12 +17,14 @@ A production-ready, event-driven live auction platform built for **high concurre
 - **Real-time WebSocket updates** broadcast confirmed bids to all connected clients
 
 ### Security
+
 - **JWT authentication** with bcrypt password hashing (never expose raw passwords)
 - **Ownership-based authorization** (users cannot bid on/edit their own auctions)
 - **Request body validation** using Zod schemas
 - **HMAC-signed payment webhooks** with cryptographic verification
 
 ### Performance & Reliability
+
 - **Dual-layer consistency**:
   - Fast layer: Redis atomicity for immediate bid acceptance (HTTP 202)
   - Durable layer: PostgreSQL transactions for eventual consistency
@@ -98,19 +101,20 @@ A production-ready, event-driven live auction platform built for **high concurre
 ## 📊 Load Test Results
 
 ### Correctness
-| Test | Concurrency | Accepted | Rejected | Errors | Result |
-|------|-------------|----------|----------|--------|--------|
-| Identical bids | 1,000 | 1 | 999 | 0 | ✅ Single-winner invariant held |
-| Different amounts | 500 | 2 | 498 | 0 | ✅ Correct winner selection |
-| Multiple auctions | 1,000 | 118 | 50 | 832 timeouts | ⚠️ Saturated at cross-auction contention |
-| Sustained (60s) | 250 clients | 145 | 12,489 | 0 | ✅ 0 failures, 0 timeouts |
+
+| Test              | Concurrency | Accepted | Rejected | Errors       | Result                                   |
+| ----------------- | ----------- | -------- | -------- | ------------ | ---------------------------------------- |
+| Identical bids    | 1,000       | 1        | 999      | 0            | ✅ Single-winner invariant held          |
+| Different amounts | 500         | 2        | 498      | 0            | ✅ Correct winner selection              |
+| Sustained (60s)   | 250 clients | 145      | 12,489   | 0            | ✅ 0 failures, 0 timeouts                |
 
 ### Performance
-| Test | Concurrency | Req/sec | p50 | p95 | p99 |
-|------|-------------|---------|-----|-----|-----|
-| Baseline | 10 | 70.66 | 108 ms | 125 ms | 125 ms |
-| Identical bids | 500 | 100.25 | 3,279 ms | 3,769 ms | 3,808 ms |
-| Sustained (60s) | 250 | 210.57 | 736 ms | **1,621 ms** | 3,260 ms |
+
+| Test            | Concurrency | Req/sec | p50      | p95          | p99      |
+| --------------- | ----------- | ------- | -------- | ------------ | -------- |
+| Baseline        | 10          | 70.66   | 108 ms   | 125 ms       | 125 ms   |
+| Identical bids  | 500         | 100.25  | 3,279 ms | 3,769 ms     | 3,808 ms |
+| Sustained (60s) | 250         | 210.57  | 736 ms   | **1,621 ms** | 3,260 ms |
 
 **Key insight**: The system maintained correctness through 1,000 concurrent identical bids with zero data corruption. Main bottleneck at high concurrency is application-level (queue serialization + consumer prefetch), not database or machine resources.
 
@@ -120,23 +124,24 @@ See [docs/load-test-report.md](docs/load-test-report.md) for full analysis.
 
 ## 🛠 Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | React 18, Vite, WebSocket client |
-| **Backend** | Node.js (ES6 modules), Express 5 |
-| **Database** | PostgreSQL 16 (connection pooling, transactions) |
-| **Cache** | Redis 7 (Lua scripting for atomicity) |
-| **Message Queue** | RabbitMQ 3.13 (durable, dead-letter configured) |
-| **Real-time** | WebSocket (ws library) |
-| **Auth** | JWT, bcryptjs (password hashing) |
-| **Validation** | Zod (schema validation) |
-| **Deployment** | Docker, Docker Compose |
+| Layer             | Technology                                       |
+| ----------------- | ------------------------------------------------ |
+| **Frontend**      | React 18, Vite, WebSocket client                 |
+| **Backend**       | Node.js (ES6 modules), Express 5                 |
+| **Database**      | PostgreSQL 16 (connection pooling, transactions) |
+| **Cache**         | Redis 7 (Lua scripting for atomicity)            |
+| **Message Queue** | RabbitMQ 3.13 (durable, dead-letter configured)  |
+| **Real-time**     | WebSocket (ws library)                           |
+| **Auth**          | JWT, bcryptjs (password hashing)                 |
+| **Validation**    | Zod (schema validation)                          |
+| **Deployment**    | Docker, Docker Compose                           |
 
 ---
 
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - Docker & Docker Compose (for PostgreSQL, Redis, RabbitMQ)
 - Node.js ≥ 18
 - npm
@@ -235,6 +240,7 @@ npm run test
 ```
 
 Each test is a standalone Node.js script that:
+
 1. Connects to live services (no mocks)
 2. Creates test data
 3. Asserts correctness
@@ -331,6 +337,7 @@ Each test is a standalone Node.js script that:
 ## 🔌 API Endpoints
 
 ### Authentication
+
 ```
 POST   /auth/register           Create account
 POST   /auth/login              Login (returns JWT)
@@ -338,6 +345,7 @@ POST   /auth/me                 Get current user profile
 ```
 
 ### Auctions
+
 ```
 GET    /auctions                List all auctions
 POST   /auctions                Create new auction (authenticated)
@@ -347,6 +355,7 @@ DELETE /auctions/:id            Delete auction (owner only, no bids)
 ```
 
 ### Bidding
+
 ```
 POST   /auctions/:id/bids       Submit bid
        Body: { bidAmount: number }
@@ -354,12 +363,14 @@ POST   /auctions/:id/bids       Submit bid
 ```
 
 ### Payments
+
 ```
 POST   /payments                Create payment order (authenticated)
 POST   /payments/webhook        Payment provider webhook (HMAC-verified)
 ```
 
 ### Real-time
+
 ```
 WebSocket /ws                   Connect for live bid updates
        Message: { auctionId, newMaxBid, timestamp }
@@ -382,11 +393,13 @@ WebSocket /ws                   Connect for live bid updates
 ## 📈 Scalability & Performance Considerations
 
 ### Current Bottlenecks (from load test)
+
 1. **Consumer prefetch=1** — Only one message at a time to prevent DB pool saturation
 2. **Per-auction ordering** — Bids for same auction are serialized through RabbitMQ consumer
 3. **DB connection pool** — Default 20 connections; tune `DB_POOL_MAX` based on your workload
 
 ### How to Scale Further
+
 - **Separate consumer process** — Run bid consumer in dedicated worker pods
 - **Increase consumer prefetch** — Test higher prefetch with bounded connection pool
 - **Read replicas** — Offload read queries (auction details) to PostgreSQL replicas
@@ -414,12 +427,14 @@ npm run migrate
 ### Kubernetes (Production)
 
 1. Build and push image to registry:
+
    ```bash
    docker build -t your-registry/auction-backend:v1.0.0 .
    docker push your-registry/auction-backend:v1.0.0
    ```
 
 2. Apply Kubernetes manifests (example):
+
    ```bash
    kubectl apply -f k8s/postgres.yaml
    kubectl apply -f k8s/redis.yaml
@@ -439,6 +454,7 @@ npm run migrate
 ## 📝 Database Schema
 
 ### Auctions Table
+
 ```sql
 CREATE TABLE auctions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -462,6 +478,7 @@ CREATE TABLE auctions (
 ```
 
 ### Bids Table
+
 ```sql
 CREATE TABLE bids (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -480,17 +497,20 @@ See [src/db/migrations/](src/db/migrations/) for complete schema.
 ## 🧑‍💻 Development Workflow
 
 1. **Create a feature branch**:
+
    ```bash
    git checkout -b feature/your-feature
    ```
 
 2. **Make changes** and run tests:
+
    ```bash
    npm run test:auth
    npm run test:lifecycle
    ```
 
 3. **Commit atomically** (each step = one commit):
+
    ```bash
    git commit -m "[STEP-XX] Feature description"
    ```
@@ -498,6 +518,7 @@ See [src/db/migrations/](src/db/migrations/) for complete schema.
 4. **Push and open a PR** for code review.
 
 ### Code Standards
+
 - **ES6 modules only** — `import`/`export` (no CommonJS in app code)
 - **Async/await** — No raw `.then()` chains
 - **Named exports** — Prefer over default exports
@@ -516,6 +537,7 @@ MIT License — see [LICENSE](LICENSE) for details.
 ## 🤝 Contributing
 
 Contributions are welcome! Please:
+
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/my-feature`)
 3. Commit your changes (`git commit -m "[STEP-XX] Description"`)
@@ -527,6 +549,7 @@ Contributions are welcome! Please:
 ## 📞 Support
 
 For issues or questions:
+
 - Open an issue on GitHub
 - Check [docs/TASK.md](docs/TASK.md) for implementation details
 - Review [docs/load-test-report.md](docs/load-test-report.md) for performance insights
@@ -536,6 +559,7 @@ For issues or questions:
 ## 🎓 Key Learnings
 
 This project demonstrates:
+
 - **Event-driven architecture** with message queues for reliability
 - **Dual-layer consistency** (fast cache + eventual DB persistence)
 - **Atomic operations** using Redis Lua scripts
