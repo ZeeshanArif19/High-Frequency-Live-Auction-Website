@@ -6,29 +6,29 @@ Environment: Docker Compose PostgreSQL, Redis, RabbitMQ; one host Node.js backen
 
 ## Correctness
 
-| Test | Concurrency | Accepted | Rejected | Errors | Result |
-|---|---:|---:|---:|---:|---|
-| Identical bids | 10 | 1 | 9 | 0 | Passed; Redis and PostgreSQL both 150; queue empty |
-| Identical bids | 50 | 1 | 49 | 0 | Passed; Redis and PostgreSQL both 150; queue empty |
-| Identical bids | 100 | 1 | 99 | 0 | Passed; Redis and PostgreSQL both 150; queue empty |
-| Identical bids | 500 | 1 | 499 | 0 | Passed; Redis and PostgreSQL both 150; queue empty |
-| Identical bids | 1,000 | 1 | 999 | 0 | Passed; Redis and PostgreSQL both 150; queue empty |
-| Different bid amounts | 500 | 2 | 498 | 0 | Passed; final Redis and PostgreSQL value 500; queue empty |
-| Multiple auctions | 4 x 250 | 118 | 50 | 832 failures/timeouts | Failed; 832 requests reached the 10-second client timeout |
+| Test                  | Concurrency | Accepted | Rejected |                Errors | Result                                                    |
+| --------------------- | ----------: | -------: | -------: | --------------------: | --------------------------------------------------------- |
+| Identical bids        |          10 |        1 |        9 |                     0 | Passed; Redis and PostgreSQL both 150; queue empty        |
+| Identical bids        |          50 |        1 |       49 |                     0 | Passed; Redis and PostgreSQL both 150; queue empty        |
+| Identical bids        |         100 |        1 |       99 |                     0 | Passed; Redis and PostgreSQL both 150; queue empty        |
+| Identical bids        |         500 |        1 |      499 |                     0 | Passed; Redis and PostgreSQL both 150; queue empty        |
+| Identical bids        |       1,000 |        1 |      999 |                     0 | Passed; Redis and PostgreSQL both 150; queue empty        |
+| Different bid amounts |         500 |        2 |      498 |                     0 | Passed; final Redis and PostgreSQL value 500; queue empty |
+| Multiple auctions     |     4 x 250 |      118 |       50 | 832 failures/timeouts | Failed; 832 requests reached the 10-second client timeout |
 
 The single-winner invariant held for identical bid contention through 1,000 requests. No duplicate accepted bid was observed in those runs. The multi-auction run did not complete successfully because the backend saturated under cross-auction contention.
 
 ## Performance
 
-| Test | Concurrency | Requests/sec | p50 | p95 | p99 |
-|---|---:|---:|---:|---:|---:|
-| Baseline | 10 | 70.66 | 108 ms | 125 ms | 125 ms |
-| Baseline | 50 | 95.92 | 366 ms | 437 ms | 442 ms |
-| Identical bids | 100 | 121.96 | 585 ms | 652 ms | 660 ms |
-| Identical bids | 500 | 100.25 | 3,279 ms | 3,769 ms | 3,808 ms |
-| Identical bids | 1,000 | 103.64 | 6,792 ms | 7,789 ms | 7,903 ms |
-| Multiple auctions | 1,000 | 11.56 | 10,001 ms | 10,010 ms | 10,014 ms |
-| Sustained | 250 clients for 60 s | 210.57 | 736 ms | 1,621 ms | 3,260 ms |
+| Test              |          Concurrency | Requests/sec |       p50 |       p95 |       p99 |
+| ----------------- | -------------------: | -----------: | --------: | --------: | --------: |
+| Baseline          |                   10 |        70.66 |    108 ms |    125 ms |    125 ms |
+| Baseline          |                   50 |        95.92 |    366 ms |    437 ms |    442 ms |
+| Identical bids    |                  100 |       121.96 |    585 ms |    652 ms |    660 ms |
+| Identical bids    |                  500 |       100.25 |  3,279 ms |  3,769 ms |  3,808 ms |
+| Identical bids    |                1,000 |       103.64 |  6,792 ms |  7,789 ms |  7,903 ms |
+| Multiple auctions |                1,000 |        11.56 | 10,001 ms | 10,010 ms | 10,014 ms |
+| Sustained         | 250 clients for 60 s |       210.57 |    736 ms |  1,621 ms |  3,260 ms |
 
 The sustained run generated 12,634 requests: 145 accepted, 12,489 rejected, 0 failures, and 0 timeouts.
 
